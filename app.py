@@ -59,7 +59,7 @@ else:
 
 #Graph for category vs sales
 with col1:
-  with st.expander("Region View Data")
+  with st.expander("Region View Data"):
      st.subheader("Total Sales by Category")
      category_df = filtered_df.groupby(by=["Category"],as_index=False)["Sales"].sum()
      fig1 = px.bar(category_df,x="Category",y="Sales",template="gridon",height=480)
