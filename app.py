@@ -1,129 +1,221 @@
 import streamlit as st
-import plotly.express as px
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import matplotlib.ticker as mticker
 
-df = pd.read_excel("sales.xlsx",engine="openpyxl")
-st.set_page_config(page_title="Super Store Sales", page_icon=":bar_chart:",layout="wide")
-st.title(" :bar_chart: Sample SuperStore EDA")
-#st.markdown('<style>div.block-container{padding-top:1rem:}</style>',unsafe_allow_html=True)
+#loading the data
+df = pd.read_csv(r"C:\Users\PC\Desktop\sales web app\sales_data.csv")
+st.set_page_config(layout='wide')
+st.markdown('<style>div.block-container{padding-top:0.5rem:}</style>', unsafe_allow_html=True)
+df[['Sales_Amount', 'Quantity_Sold', 'Unit_Cost', 'Unit_Price', 'Discount']] = \
+df[['Sales_Amount', 'Quantity_Sold', 'Unit_Cost', 'Unit_Price', 'Discount']].astype(float)
+df["Sale_Date"] = pd.to_datetime(df['Sale_Date'])
+html_title = """
+  <style>
+  .title-test {
+   font-weight: bold;
+   padding:5px;
+   border-radius: 6px;
+   text-align: center;
+  }
+  .block-container {
+        padding-top: 20px;
+    }
+  </style>
+  <h1 class="title-test">Sales Web Dashboard</h1>
+"""
+st.markdown(html_title, unsafe_allow_html=True)
+#sum computations
+total_sales = df["Sales_Amount"].sum()
+total_quantity = df["Quantity_Sold"].sum()
+total_orders = df.shape[0]
+cost_average = df['Unit_Cost'].mean()
+price_average = df["Unit_Price"].mean()
 
-#creating platform for uploading a file
-fl = st.file_uploader("Upload a file",type=(["csv","txt","xlsx","xls"]))
+product_sales = df.groupby('Product_Category')['Sales_Amount'].sum()
+region_sales = df.groupby('Region')['Sales_Amount'].sum()
+payment_sales = df.groupby('Payment_Method')['Sales_Amount'].sum()
 
-col1,col2 = st.columns((2))
-df["Order Date"]=pd.to_datetime(df["Order Date"]) #converting to datetime
+#creating 5 cards for showing the summations
+col1, col2, col3, col4, col5 = st.columns([1,1,1,1,1])
 
-startdate=pd.to_datetime(df["Order Date"]).min()
-enddate=pd.to_datetime(df["Order Date"]).max()
-
+#displaying numbers on the cards
 with col1:
-    date1 = pd.to_datetime(st.date_input("Start Date",startdate))
+    st.metric("Total Sales", f"${total_sales:,.0f}")
 with col2:
-    date2 = pd.to_datetime(st.date_input("End Date",enddate))
+    st.metric("Quantity_Sold", f"{total_quantity:,.0f}")
+with col3:
+    st.metric("Total Oders", f"{total_orders:,.0f}")
+with col4:
+    st.metric("Average Cost", f"{cost_average:,.0f}")
+with col5:
+    st.metric("Average Price", f"{price_average:,.0f}")
 
-df = df[(df["Order Date"]>= date1) & (df["Order Date"]<=date2)].copy()
+#creating sub header
+eda_title = """
+<style>
+.eda {
+    text-align: center;
+    margin-top: -20px;
+    margin-bottom: -20px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+}
+</style>
+<h2 class="eda">Exploratory Data Analysis</h2>
+"""
 
-#creating filter for region
-st.sidebar.header("Chose Your Filter ")
-region=st.sidebar.multiselect("Pick Region",df["Region"].unique())
-if not region:
-    df2 = df.copy()
-else:
-    df2=df[df["Region"].isin(region)]
+#st.markdown("<hr style='margin-bottom: -1px; border: 1px solid black; margin-bottom: -10px;'>", unsafe_allow_html=True)
+st.markdown(eda_title, unsafe_allow_html=True)
+st.markdown("<hr style='margin-top: -15px; border: 1px solid black; margin-bottom: -10px;'>", unsafe_allow_html=True)
 
-#creating filter for state
-state=st.sidebar.multiselect("Pick State",df2["State"].unique())
-if not state:
-    df3=df2.copy()
-else:
-    df3=df2[df2["State"].isin(state)]
+#creating 3columns for 3 charts
+col_chart1, col_chart2, col_chart3 = st.columns([2,2,2])
 
-#creating filter for city
-city=st.sidebar.multiselect("Pick City", df3["City"].unique())
-if not region and not state and not city:
-    filtered_df = df
-elif not state and not city:
-    filtered_df=df[df["Region"].isin(region)]
-elif not region and not city:
-    filtered_df = df[df["State"].isin(state)]
-elif state and city:
-    filtered_df=df3[df["State"].isin(state) & (df3["City"].isin(city))]
-elif region and city:
-    filtered_df = df3[df["Region"].isin(region) & df3["City"].isin(city)]
-elif region and state:
-    filtered_df = df3[df["Region"].isin(region) & df3["State"].isin(state)]
-elif city:
-    filtered_df = df3[df3["City"].isin(city)]
-else:
-    filtered_df=df3[df3["Region"].isin(region) & df3["State"].isin(state) & df3["City"].isin(city)]
+#first bar chart
+with col_chart1:
+    fig, ax = plt.subplots(figsize = (8,5))
+    ax.bar(product_sales.index, product_sales.values)
+    ax.yaxis.set_major_formatter(mticker.StrMethodFormatter('{x:,.0f}'))
+    for i, v in enumerate (product_sales.values):
+        ax.text(i, float(product_sales.values[i]), f"{product_sales.values[i]:,.0f}", 
+        ha='center', va='bottom', fontsize=12)
+    ax.set_xticklabels(product_sales.index, rotation=45, ha='right',fontsize=12)
+    ax.set_xlabel("Product Category",fontsize=10)
+    ax.set_ylabel("Revenue",fontsize=12)
+    ax.set_title("Total Revenue by Product Category")
+    st.pyplot(fig)
 
-#Graph for category vs sales
-with col1:
-     st.subheader("Total Sales by Category")
-     category_df = filtered_df.groupby(by=["Category"],as_index=False)["Sales"].sum()
-     fig1 = px.bar(category_df,x="Category",y="Sales",template="gridon",height=480)
-     st.plotly_chart(fig1,use_container_width=True)
-#Graph showing sales by Region
-with col2:
-     st.subheader("Total Sales by Region")
-     region_df = filtered_df.groupby(by=["Region"],as_index=False)["Sales"].sum()
-     fig2 = px.pie(filtered_df,values="Sales", names="Region", hole=0.5)
-     fig2.update_traces(text=filtered_df["Region"],textposition="outside")
-     st.plotly_chart(fig2,use_container_width=True)
+#2nd bar chart
+with col_chart2:
+    fig2, ax = plt.subplots(figsize = (8,5))
+    ax.bar(region_sales.index, region_sales.values)
+    ax.yaxis.set_major_formatter(mticker.StrMethodFormatter('{x:,.0f}'))
+    for i, v in enumerate(region_sales.values):
+        ax.text(i, v, f"{v:,.0f}", ha='center', va='bottom', fontsize=12)
+    ax.set_xticklabels(region_sales.index, rotation=45, ha='right')
+    ax.set_xlabel("Region",fontsize=12)
+    ax.set_ylabel("Revenue",fontsize=12)
+    ax.set_title("Total Revenue by Region")
+    st.pyplot(fig2)
+
+#3rd bar Chart
+with col_chart3:
+    fig3, ax = plt.subplots(figsize = (8,5))
+    ax.bar(payment_sales.index, payment_sales.values)
+    ax.yaxis.set_major_formatter(mticker.StrMethodFormatter('{x:,.0f}'))
+    for i, v in enumerate(payment_sales.values):
+        ax.text(i, v, f"{v:,.0f}", ha='center', va='bottom', fontsize=12)
+    ax.set_xticklabels(payment_sales.index, rotation=45)
+    ax.set_ylabel("Revenue", fontsize=12)
+    ax.set_xlabel("Payment Method", fontsize=12)
+    ax.set_title("Revenue by Payment Method")
+    st.pyplot(fig3)
+
+#title for facet grid
+facet_title = """
+<style>
+.eda {
+    text-align: center;
+    margin-top: -20px;
+    margin-bottom: -20px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+}
+</style>
+<h2 class="eda">Sales by Region, Agent per Region and Total Revenue</h2>
+"""
+
+#st.markdown("<hr style='margin-bottom: -1px; border: 1px solid black; margin-bottom: -10px;'>", unsafe_allow_html=True)
+st.markdown(facet_title, unsafe_allow_html=True)
+st.markdown("<hr style='margin-top: -15px; border: 1px solid black; margin-bottom: -10px;'>", unsafe_allow_html=True)
+
+#facet grid chart    
+facet_col = st.columns([1])
+with facet_col[0]:
+    fig4 = sns.FacetGrid(df, col="Region", sharex=False)
+    fig4.map_dataframe(sns.barplot,x="Region_and_Sales_Rep", y="Sales_Amount", errorbar=None)
+    fig4.set_xticklabels(rotation=45,ha='right',fontsize=7, fontweight='normal')
+    fig4.set_xlabels(fontsize=7,fontweight='normal')
+    fig4.set_ylabels(fontsize=7,fontweight='normal')
+    fig4.set_titles(fontsize=7,fontweight='normal')
+    st.pyplot(fig4.figure)
+
+#trend analysis title
+trend_title = """
+<style>
+.eda {
+    text-align: center;
+    margin-top: -20px;
+    margin-bottom: -20px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+}
+</style>
+<h2 class="eda">Sales Over time (Trend)</h2>
+"""
+
+#st.markdown("<hr style='margin-bottom: -1px; border: 1px solid black; margin-bottom: -10px;'>", unsafe_allow_html=True)
+st.markdown(trend_title, unsafe_allow_html=True)
+st.markdown("<hr style='margin-top: -15px; border: 1px solid black; margin-bottom: -10px;'>", unsafe_allow_html=True)
+
+#first trend analysis chart  
+trend_col1, trend_col2 = st.columns([0.5,0.5])
+with trend_col1:
+    df["Month"] = df["Sale_Date"].dt.month_name()       
+    df["Month_num"] = df["Sale_Date"].dt.month
+    df_month = df.groupby(["Month", "Month_num"])["Sales_Amount"].sum().reset_index()
+    df_month_sorted = df_month.sort_values("Month_num")  
     
-cl1,cl2 = st.columns(2)
-with cl1:
-    with st.expander("Category_view_data"):
-       st.write(category_df.style.background_gradient(cmap="Blues"))
-       csv=category_df.to_csv(index=False).encode("utf-8")
-       st.download_button("Download data", data = csv, file_name="Category.csv", mime="text/csv")
+    fig5, ax = plt.subplots(figsize=(8,5))
+    ax.barh(df_month_sorted["Month"], df_month_sorted["Sales_Amount"])
+    for i, v in enumerate(df_month_sorted["Sales_Amount"]):
+        ax.text(v*0.80, i, f"{v:,.0f}", fontweight='bold', va='center', color='black', fontsize=10)
+    ax.set_yticklabels(df_month_sorted['Month'], rotation=0)
+    ax.set_xlabel("Months per Year")
+    ax.set_ylabel("Revenue")
+    ax.set_title("Trend by Month")
+    st.pyplot(fig5)
 
-with cl2:
-    with st.expander("Region_view_data"):
-       st.write(region_df.style.background_gradient(cmap="Blues"))
-       csv=category_df.to_csv(index=False).encode("utf-8")
-       st.download_button("Download data", data = csv, file_name="region.csv", mime="text/csv")
+#Second trend analysis chart   
+with trend_col2: 
+    df["Month_Year"] = df["Sale_Date"].dt.strftime("%b-%Y")
+    df["Year"] = df["Sale_Date"].dt.year
+    df["Month"] = df["Sale_Date"].dt.month
+    
+    df_month_year = df.groupby(["Year", "Month", "Month_Year"], as_index=False)["Sales_Amount"].sum()
+    df_month_year = df_month_year.sort_values(["Year", "Month"])
+    fig6, ax = plt.subplots(figsize=(8, 5))
+    ax.fill_between(df_month_year["Month_Year"], df_month_year["Sales_Amount"], color="blue", alpha=0.5)
+    ax.plot(df_month_year["Month_Year"], df_month_year["Sales_Amount"], marker="o", linestyle="-", color="blue")
+    
+    ax.set_xticks(range(len(df_month_year["Month_Year"])))  
+    ax.set_xticklabels(df_month_year["Month_Year"], rotation=45, ha="right", fontsize=10)
+    ax.set_xlabel("Month-Year")
+    ax.set_ylabel("Revenue")
+    ax.set_title("Sales Trend Over Time")
+    st.pyplot(fig6) 
 
-#Line graph showing sales over time
-filtered_df["month_year"]=filtered_df["Order Date"].dt.to_period("M") #keeps only month and year
-Line = pd.DataFrame(filtered_df.groupby(filtered_df["month_year"].dt.strftime("%Y : %b"))["Sales"].sum()).reset_index()
-st.subheader("TimeSeries: Sales over time")
-fig3 = px.line(Line,x="month_year",y="Sales",labels={"Sales": "Amount"}, height=500, width=1000, template="gridon")
-st.plotly_chart(fig3,use_container_width=True)
+#adding new subheader
+data_title = """
+<style>
+.data {
+    text-align: left;
+    margin-top: -20px;
+    margin-bottom: -20px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+}
+</style>
+<h2 class="data">All Data</h2>
+"""
+#st.markdown("<hr style='margin-bottom: -1px; border: 1px solid black; margin-bottom: -10px;'>", unsafe_allow_html=True)
+st.markdown(data_title, unsafe_allow_html=True)
+st.markdown("<hr style='margin-top: -15px; border: 1px solid black; margin-bottom: -10px;'>", unsafe_allow_html=True)
 
-with st.expander("View Sales overtime"):
-    st.write(Line.T.style.background_gradient(cmap="Blues"))
-    csv = Line.to_csv(index=False).encode("utf-8")
-    st.download_button("Download", data=csv,file_name="Timeseries.csv",mime="text/csv")
-#treemap based on region category and sub-category
-st.subheader("View of Sales using a Treemap")
-fig4 = px.treemap(filtered_df, path=["Region","Category","Sub-Category"], values="Sales",
-                  hover_data=["Sales"], color="Sub-Category")
-fig4.update_layout(width=800,height=650)
-st.plotly_chart(fig4,use_container_width=True)
-#2 pie charts showing segment wise sales  and category wise sales
-chart1,chart2=st.columns(2)
-with chart1:
-    st.subheader("Segment wise Sales")
-    fig = px.pie(filtered_df,values="Sales",names="Segment",template="plotly_dark")
-    fig.update_traces(text=filtered_df["Segment"],textposition="inside")
-    st.plotly_chart(fig,use_container_width=True)
-
-with chart2:
-    st.subheader("Category wise Sales")
-    fig = px.pie(filtered_df,values="Sales",names="Category",template="plotly_dark")
-    fig.update_traces(text=filtered_df["Category"],textposition="inside")
-    st.plotly_chart(fig,use_container_width=True)
-
-#pivittable showing sales by month
-st.subheader("Month wise Sub-Category Sales")
-filtered_df["Month"] = filtered_df["Order Date"].dt.month_name()
-sub_category_year=pd.pivot_table(data=filtered_df,values="Sales",index=["Sub-Category"],columns="Month")
-st.write(sub_category_year.style.background_gradient(cmap="Blues"))
-
-#creating a scatter plot
-data1 = px.scatter(filtered_df,x="Sales",y="Profit",size="Quantity")
-data1['layout'].update(title="Relationship between Sales and Profit using a sactter plot.",
-                        titlefont=dict(size=20),xaxis=dict(title="Sales",titlefont=dict(size=19)),
-                        yaxis=dict(title="Profit",titlefont=dict(size=19)))
-st.plotly_chart(data1,use_container_width=True)
+#adding the data
+data_col = st.columns(1)
+with data_col[0]:
+    st.dataframe(df)
